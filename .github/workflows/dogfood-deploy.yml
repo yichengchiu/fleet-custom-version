@@ -16,7 +16,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: ${{ env.tf_actions_working_dir }}
+    working-directory: ${{ env.TF_ACTIONS_WORKING_DIR }}
 
 jobs:
   deploy:
