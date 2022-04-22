@@ -2,7 +2,7 @@ on: workflow_dispatch
 
 env:
   AWS_REGION: us-east-2
-#  ECR_REPOSITORY: 123169442427.dkr.ecr.us-east-2.amazonaws.com/slackbot
+  ECR_REPOSITORY: fleet-test
   AWS_IAM_ROLE: arn:aws:iam::160035666661:role/github-actions-role
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    name: Docker build and publish to ECR
+    name: Deploy Fleet Dogfood Environment
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -26,6 +26,7 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
+        with:
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
