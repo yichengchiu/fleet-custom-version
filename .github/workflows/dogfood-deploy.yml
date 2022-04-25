@@ -8,6 +8,7 @@ env:
   ECR_REPOSITORY: fleet-test
   AWS_IAM_ROLE: arn:aws:iam::160035666661:role/github-actions-role
   TF_ACTIONS_WORKING_DIR: infrastructure/dogfood/terraform/aws
+  TF_WORKSPACE: fleet
 
 permissions:
   id-token: write
@@ -43,7 +44,7 @@ jobs:
         run: terraform validate -no-color
       - name: Terraform Plan
         id: plan
-        run: terraform workspace new fleet && terraform workspace select fleet && terraform init && terraform plan -no-color
+        run: terraform init && terraform plan -no-color
         continue-on-error: true
 
       - run: echo ${{ steps.validate.outputs.stdout}}
