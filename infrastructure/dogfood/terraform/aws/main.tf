@@ -17,7 +17,7 @@ terraform {
   backend "s3" {
     bucket         = "fleet-terraform-remote-state"
     region         = "us-east-2"
-    key            = "fleet/"
+    key            = "fleet"
     dynamodb_table = "fleet-terraform-state-lock"
   }
   required_providers {
