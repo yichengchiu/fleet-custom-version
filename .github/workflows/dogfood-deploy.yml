@@ -43,7 +43,7 @@ jobs:
         run: terraform validate -no-color
       - name: Terraform Plan
         id: plan
-        run: terraform init && terraform workspace new fleet && terraform workspace select fleet && terraform plan -no-color
+        run: terraform workspace new fleet && terraform workspace select fleet && terraform init && terraform plan -no-color
         continue-on-error: true
 
       - run: echo ${{ steps.validate.outputs.stdout}}
