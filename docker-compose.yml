@@ -1,63 +1,108 @@
 ---
 version: "2"
 services:
+  fleet_server:
+    image: fleetdm/fleet:latest
+    command: sh -c "/usr/bin/fleet prepare db --no-prompt && /usr/bin/fleet serve"
+    ports:
+      - "8412:8412"
+    environment:
+      FLEET_MYSQL_ADDRESS: mysql:3306
+      FLEET_MYSQL_DATABASE: fleet
+      FLEET_MYSQL_USERNAME: fleet
+      FLEET_MYSQL_PASSWORD: fleet
+      FLEET_REDIS_ADDRESS: redis:6379
+      FLEET_SERVER_ADDRESS: 0.0.0.0:8412
+      FLEET_SERVER_CERT: /fleet/osquery/fleet.crt
+      FLEET_SERVER_KEY: /fleet/osquery/fleet.key
+      FLEET_LOGGING_JSON: 'true'
+      FLEET_OSQUERY_STATUS_LOG_PLUGIN: stdout
+      #FLEET_FILESYSTEM_STATUS_LOG_FILE: /logs/osqueryd.status.log
+      FLEET_OSQUERY_RESULT_LOG_PLUGIN: stdout
+      #FLEET_FILESYSTEM_RESULT_LOG_FILE: /logs/osqueryd.results.log
+      FLEET_BETA_SOFTWARE_INVENTORY: 1
+      #FLEET_LICENSE_KEY: ${FLEET_LICENSE_KEY} for Fleet Premium
+      FLEET_OSQUERY_LABEL_UPDATE_INTERVAL: 1m
+      FLEET_VULNERABILITIES_CURRENT_INSTANCE_CHECKS: "yes"
+      FLEET_VULNERABILITIES_DATABASES_PATH: /vulndb
+      FLEET_VULNERABILITIES_PERIODICITY: 5m
+      FLEET_LOGGING_DEBUG: 'true'
+    depends_on:
+      - mysql
+      - redis
+    volumes:
+      - ./demo_use/cert/:/fleet/osquery
+      - ./demo_use/logs:/logs
+      - ./demo_use/vulndb:/vulndb
+    networks:
+      - fleet_preview
+
   # To test with MariaDB, set FLEET_MYSQL_IMAGE to mariadb:10.6 or the like.
   mysql:
-    image: ${FLEET_MYSQL_IMAGE:-mysql:5.7.21}
-    platform: linux/x86_64
+    # image: ${FLEET_MYSQL_IMAGE:-mysql:5.7.21}
+    image: mysql:5.7.21
+    # platform: linux/x86_64
     volumes:
-      - mysql-persistent-volume:/tmp
-    command: [
-        "mysqld",
-        "--datadir=/tmp/mysqldata",
-        "--event-scheduler=ON",
-        # These 3 keys run MySQL with GTID consistency enforced to avoid issues with production deployments that use it.
-        "--enforce-gtid-consistency=ON",
-        "--log-bin=bin.log",
-        "--server-id=master-01",
-      ]
-    environment: &mysql-default-environment
+      - ./demo_use/mysql-persistent-volume:/data
+    command: mysqld --datadir=/tmp/data --event-scheduler=ON
+    # command:
+    #   [
+    #     "mysqld",
+    #     "--datadir=/tmp/mysqldata",
+    #     "--event-scheduler=ON",
+    #     # These 3 keys run MySQL with GTID consistency enforced to avoid issues with production deployments that use it.
+    #     "--enforce-gtid-consistency=ON",
+    #     "--log-bin=bin.log",
+    #     "--server-id=master-01"
+    #   ]
+    environment:
       MYSQL_ROOT_PASSWORD: toor
       MYSQL_DATABASE: fleet
       MYSQL_USER: fleet
-      MYSQL_PASSWORD: insecure
+      MYSQL_PASSWORD: fleet
     ports:
       - "3306:3306"
+    networks:
+      - fleet_preview
 
-  mysql_test:
-    image: ${FLEET_MYSQL_IMAGE:-mysql:5.7.21}
-    platform: linux/x86_64
-    # innodb-file-per-table=OFF gives ~20% speedup for test runs.
-    command: [
-        "mysqld",
-        "--datadir=/tmpfs",
-        "--slow_query_log=1",
-        "--log_output=TABLE",
-        "--log-queries-not-using-indexes",
-        "--event-scheduler=ON",
-        "--innodb-file-per-table=OFF",
-        # These 3 keys run MySQL with GTID consistency enforced to avoid issues with production deployments that use it.
-        "--enforce-gtid-consistency=ON",
-        "--log-bin=bin.log",
-        "--server-id=master-01",
-      ]
-    environment: *mysql-default-environment
-    ports:
-      - "3307:3306"
-    tmpfs:
-      - /var/lib/mysql:rw,noexec,nosuid
-      - /tmpfs
+  # mysql_test:
+  #   image: ${FLEET_MYSQL_IMAGE:-mysql:5.7.21}
+  #   platform: linux/x86_64
+  #   # innodb-file-per-table=OFF gives ~20% speedup for test runs.
+  #   command: [
+  #       "mysqld",
+  #       "--datadir=/tmpfs",
+  #       "--slow_query_log=1",
+  #       "--log_output=TABLE",
+  #       "--log-queries-not-using-indexes",
+  #       "--event-scheduler=ON",
+  #       "--innodb-file-per-table=OFF",
+  #       # These 3 keys run MySQL with GTID consistency enforced to avoid issues with production deployments that use it.
+  #       "--enforce-gtid-consistency=ON",
+  #       "--log-bin=bin.log",
+  #       "--server-id=master-01",
+  #     ]
+  #   environment: *mysql-default-environment
+  #   ports:
+  #     - "3307:3306"
+  #   tmpfs:
+  #     - /var/lib/mysql:rw,noexec,nosuid
+  #     - /tmpfs
 
   mailhog:
     image: mailhog/mailhog:latest
     ports:
       - "8025:8025"
       - "1025:1025"
+    networks:
+      - fleet_preview
 
   redis:
     image: redis:5
     ports:
       - "6379:6379"
+    networks:
+      - fleet_preview
 
   redis-cluster-setup:
     image: redis:5
@@ -149,6 +194,8 @@ services:
     ports:
       - "9080:8080"
       - "9443:8443"
+    networks:
+      - fleet_preview
 
   # CAdvisor container allows monitoring other containers. Useful for
   # development.
@@ -160,6 +207,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - fleet_preview
 
   prometheus:
     image: prom/prometheus:latest
@@ -167,16 +216,20 @@ services:
       - "9090:9090"
     volumes:
       - ./tools/app/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - fleet_preview
 
   # localstack to simulate AWS integrations like firehose & kinesis
   # use http://localhost:4566 as the `--endpoint-url` argument in awscli
-  localstack:
-    image: localstack/localstack
-    ports:
-      - "4566:4566"
-      - "4571:4571"
-    environment:
-      - SERVICES=firehose,kinesis
+  # localstack:
+  #   image: localstack/localstack
+  #   ports:
+  #     - "4566:4566"
+  #     - "4571:4571"
+  #   environment:
+  #     - SERVICES=firehose,kinesis
+  #   networks:
+  #     - fleet_preview
 
   # s3 compatible object storage (file carving backend)
   minio:
@@ -189,11 +242,14 @@ services:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123!
     volumes:
-      - data-minio:/data
+      - ./demo_use/minio:/data
+    networks:
+      - fleet_preview
 
-volumes:
-  mysql-persistent-volume:
-  data-minio:
+# volumes:
+#   mysql-persistent-volume:
+#   data-minio:
+
 
 networks:
   cluster_network:
@@ -201,3 +257,5 @@ networks:
     ipam:
       config:
         - subnet: 172.20.0.0/24
+  fleet_preview:
+    driver: bridge
